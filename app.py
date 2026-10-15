@@ -112,6 +112,24 @@ def init_db():
     cols = {r[1] for r in conn.execute("PRAGMA table_info(orders)").fetchall()}
     if "trxid" not in cols:
         conn.execute("ALTER TABLE orders ADD COLUMN trxid TEXT")
+    # Wallet: balance column on users.
+    ucols = {r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "balance" not in ucols:
+        conn.execute("ALTER TABLE users ADD COLUMN balance INTEGER NOT NULL DEFAULT 0")
+    # Wallet: balance top-up requests.
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS topups (
+               id INTEGER PRIMARY KEY AUTOINCREMENT,
+               topup_id TEXT NOT NULL UNIQUE,
+               user_id INTEGER NOT NULL REFERENCES users(id),
+               amount INTEGER NOT NULL,
+               payment_method TEXT NOT NULL,
+               sender_number TEXT NOT NULL,
+               trxid TEXT NOT NULL,
+               status TEXT NOT NULL DEFAULT 'pending',
+               created_at TEXT NOT NULL
+           )"""
+    )
     conn.commit()
     conn.close()
 
@@ -151,7 +169,7 @@ def current_user():
         return None
     conn = get_db()
     row = conn.execute(
-        """SELECT u.id, u.name, u.phone FROM sessions s
+        """SELECT u.id, u.name, u.phone, u.balance FROM sessions s
            JOIN users u ON u.id = s.user_id WHERE s.token = ?""",
         (token,),
     ).fetchone()
@@ -203,7 +221,7 @@ def signup():
     )
     token = create_session(conn, cur.lastrowid)
     conn.commit()
-    return jsonify({"ok": True, "token": token, "name": name, "phone": phone}), 201
+    return jsonify({"ok": True, "token": token, "name": name, "phone": phone, "balance": 0}), 201
 
 
 @app.post("/api/auth/login")
@@ -219,7 +237,8 @@ def login():
 
     token = create_session(conn, row["id"])
     conn.commit()
-    return jsonify({"ok": True, "token": token, "name": row["name"], "phone": row["phone"]})
+    bal = row["balance"] if "balance" in row.keys() and row["balance"] is not None else 0
+    return jsonify({"ok": True, "token": token, "name": row["name"], "phone": row["phone"], "balance": int(bal)})
 
 
 @app.get("/api/auth/me")
@@ -227,7 +246,8 @@ def me():
     user = current_user()
     if not user:
         return err("login_required", 401)
-    return jsonify({"ok": True, "name": user["name"], "phone": user["phone"]})
+    bal = user["balance"] if "balance" in user.keys() and user["balance"] is not None else 0
+    return jsonify({"ok": True, "name": user["name"], "phone": user["phone"], "balance": int(bal)})
 
 
 @app.post("/api/auth/logout")
@@ -276,6 +296,35 @@ def send_telegram_order_alert(order):
         pass  # alerts must never break order placement
 
 
+def send_telegram_topup_alert(t):
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+    if not token or not chat_id:
+        return
+    try:
+        pm = PAYMENT_METHOD_BN.get(t["payment_method"], t["payment_method"])
+        lines = [
+            "💰 *নতুন ব্যালেন্স রিকোয়েস্ট!*",
+            "🧾 `%s`" % t["topup_id"],
+            "👤 নাম: %s" % t["name"],
+            "📞 ফোন: %s" % t["phone"],
+            "💵 পরিমাণ: *৳%d*" % t["amount"],
+            "💳 মাধ্যম: %s" % pm,
+            "🔑 TrxID: `%s`" % t["trxid"],
+        ]
+        payload = urllib.parse.urlencode(
+            {"chat_id": chat_id, "text": "\n".join(lines), "parse_mode": "Markdown"}
+        ).encode()
+        req = urllib.request.Request(
+            "https://api.telegram.org/bot%s/sendMessage" % token,
+            data=payload,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        urllib.request.urlopen(req, timeout=8).read()
+    except Exception:
+        pass  # alerts must never break top-up submission
+
+
 # ---------------------------------------------------------------------------
 # Storefront API
 # ---------------------------------------------------------------------------
@@ -307,28 +356,18 @@ def order_dict(row):
 
 @app.post("/api/orders")
 def create_order():
-    # Orders require a logged-in account; name/phone come from the account.
+    # Orders require a logged-in account; payment comes from wallet balance.
+    # The customer only provides their game UID — no per-order payment.
     user, error = require_user()
     if error:
         return error
 
     data = request.get_json(force=True, silent=True) or {}
     uid = str(data.get("uid") or "").strip()
-    sender_number = normalize_phone(data.get("sender_number"))
-    payment_method = str(data.get("payment_method") or "").strip().lower()
-    trxid = str(data.get("trxid") or "").strip().upper()
     items_in = data.get("items") or []
 
     if not UID_RE.match(uid):
         return err("invalid_uid", 400)
-    if not BD_PHONE_RE.match(sender_number):
-        return err("invalid_sender_number", 400)
-    if payment_method not in PAYMENT_METHODS:
-        return err("invalid_payment_method", 400)
-    # Manual bKash/Nagad: customer pays to the shop number and submits the
-    # transaction ID from the payment SMS. No payment API involved.
-    if not TRXID_RE.match(trxid):
-        return err("invalid_trxid", 400)
 
     products = {p["id"]: p for p in load_products()}
     items, total = [], 0
@@ -353,7 +392,13 @@ def create_order():
         return err("empty_cart", 400)
 
     # Server-computed total: client totals are never trusted.
+    # Wallet: deduct from balance atomically; reject if insufficient.
     conn = get_db()
+    row = conn.execute("SELECT balance FROM users WHERE id = ?", (user["id"],)).fetchone()
+    balance = int(row["balance"] or 0) if row else 0
+    if balance < total:
+        return err("insufficient_balance", 402)
+    conn.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (total, user["id"]))
     order_id = new_order_id(conn)
     conn.execute(
         """INSERT INTO orders
@@ -365,11 +410,11 @@ def create_order():
             user["id"],
             uid,
             user["phone"],
-            sender_number,
+            "",
             json.dumps(items, ensure_ascii=False),
             total,
-            payment_method,
-            trxid,
+            "wallet",
+            "",
             "pending",
             now_iso(),
         ),
@@ -382,11 +427,11 @@ def create_order():
         "phone": user["phone"],
         "items": items,
         "total": total,
-        "payment_method": payment_method,
-        "trxid": trxid,
+        "payment_method": "wallet",
+        "trxid": "",
     }
     send_telegram_order_alert(order)
-    return jsonify({"ok": True, "order_id": order_id, "total": total}), 201
+    return jsonify({"ok": True, "order_id": order_id, "total": total, "balance": balance - total}), 201
 
 
 @app.get("/api/orders/mine")
@@ -400,6 +445,73 @@ def my_orders():
         "SELECT * FROM orders WHERE user_id = ? ORDER BY id DESC", (user["id"],)
     ).fetchall()
     return jsonify({"ok": True, "orders": [order_dict(r) for r in rows]})
+
+
+# ---------------------------------------------------------------------------
+# Wallet top-ups (Add Money): customer sends money manually, admin approves
+# ---------------------------------------------------------------------------
+def new_topup_id(conn):
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    for _ in range(20):
+        tid = "TP-" + "".join(secrets.choice(alphabet) for _ in range(6))
+        if not conn.execute("SELECT 1 FROM topups WHERE topup_id = ?", (tid,)).fetchone():
+            return tid
+    raise RuntimeError("topup id collision")
+
+
+@app.post("/api/topup")
+def create_topup():
+    """Submit a balance top-up request (manual bKash/Nagad/Bangla QR)."""
+    user, error = require_user()
+    if error:
+        return error
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        amount = int(data.get("amount") or 0)
+    except (TypeError, ValueError):
+        return err("invalid_amount", 400)
+    payment_method = str(data.get("payment_method") or "").strip().lower()
+    sender_number = normalize_phone(data.get("sender_number"))
+    trxid = str(data.get("trxid") or "").strip().upper()
+
+    if amount < 10 or amount > 100000:
+        return err("invalid_amount", 400)
+    if payment_method not in PAYMENT_METHODS:
+        return err("invalid_payment_method", 400)
+    if not BD_PHONE_RE.match(sender_number):
+        return err("invalid_sender_number", 400)
+    if not TRXID_RE.match(trxid):
+        return err("invalid_trxid", 400)
+
+    conn = get_db()
+    if conn.execute("SELECT 1 FROM topups WHERE trxid = ?", (trxid,)).fetchone():
+        return err("duplicate_trxid", 409)
+    topup_id = new_topup_id(conn)
+    conn.execute(
+        """INSERT INTO topups
+           (topup_id, user_id, amount, payment_method, sender_number, trxid, status, created_at)
+           VALUES (?,?,?,?,?,?,?,?)""",
+        (topup_id, user["id"], amount, payment_method, sender_number, trxid, "pending", now_iso()),
+    )
+    conn.commit()
+    send_telegram_topup_alert(
+        {"topup_id": topup_id, "name": user["name"], "phone": user["phone"],
+         "amount": amount, "payment_method": payment_method, "trxid": trxid}
+    )
+    return jsonify({"ok": True, "topup_id": topup_id}), 201
+
+
+@app.get("/api/topup/mine")
+def my_topups():
+    """The logged-in customer's own top-up requests, newest first."""
+    user, error = require_user()
+    if error:
+        return error
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM topups WHERE user_id = ? ORDER BY id DESC", (user["id"],)
+    ).fetchall()
+    return jsonify({"ok": True, "topups": [dict(r) for r in rows]})
 
 
 # ---------------------------------------------------------------------------
@@ -441,12 +553,14 @@ def admin_stats():
     total_orders = conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
     total_revenue = conn.execute("SELECT COALESCE(SUM(total),0) FROM orders").fetchone()[0]
     total_buyers = conn.execute("SELECT COUNT(DISTINCT phone) FROM orders").fetchone()[0]
+    pending_topups = conn.execute("SELECT COUNT(*) FROM topups WHERE status = 'pending'").fetchone()[0]
     return jsonify({
         "ok": True,
         "total_orders": total_orders,
         "total_revenue": total_revenue,
         "total_buyers": total_buyers,
         "total_products": len(load_products()),
+        "pending_topups": pending_topups,
     })
 
 
@@ -478,6 +592,58 @@ def admin_order_status(order_id):
     conn.commit()
     if cur.rowcount == 0:
         return err("order_not_found", 404)
+    return jsonify({"ok": True})
+
+
+@app.get("/api/admin/topups")
+def admin_topups():
+    if not admin_authorized():
+        return err("unauthorized", 401)
+    status = request.args.get("status", "").strip().lower()
+    conn = get_db()
+    q = """SELECT t.*, u.name AS user_name, u.phone AS user_phone
+           FROM topups t JOIN users u ON u.id = t.user_id"""
+    params = []
+    if status in ("pending", "approved", "rejected"):
+        q += " WHERE t.status = ?"
+        params.append(status)
+    q += " ORDER BY t.id DESC"
+    rows = conn.execute(q, params).fetchall()
+    return jsonify({"ok": True, "topups": [dict(r) for r in rows]})
+
+
+@app.post("/api/admin/topups/<int:tid>/approve")
+def admin_topup_approve(tid):
+    if not admin_authorized():
+        return err("unauthorized", 401)
+    conn = get_db()
+    row = conn.execute("SELECT * FROM topups WHERE id = ?", (tid,)).fetchone()
+    if not row:
+        return err("topup_not_found", 404)
+    if row["status"] != "pending":
+        return err("already_processed", 409)
+    conn.execute("UPDATE topups SET status = 'approved' WHERE id = ?", (tid,))
+    conn.execute(
+        "UPDATE users SET balance = balance + ? WHERE id = ?",
+        (int(row["amount"]), int(row["user_id"])),
+    )
+    conn.commit()
+    bal = conn.execute("SELECT balance FROM users WHERE id = ?", (int(row["user_id"]),)).fetchone()
+    return jsonify({"ok": True, "balance": int(bal["balance"] or 0)})
+
+
+@app.post("/api/admin/topups/<int:tid>/reject")
+def admin_topup_reject(tid):
+    if not admin_authorized():
+        return err("unauthorized", 401)
+    conn = get_db()
+    row = conn.execute("SELECT * FROM topups WHERE id = ?", (tid,)).fetchone()
+    if not row:
+        return err("topup_not_found", 404)
+    if row["status"] != "pending":
+        return err("already_processed", 409)
+    conn.execute("UPDATE topups SET status = 'rejected' WHERE id = ?", (tid,))
+    conn.commit()
     return jsonify({"ok": True})
 
 

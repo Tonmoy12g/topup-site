@@ -64,6 +64,7 @@
       <button data-tab="orders" onclick="showTab('orders')">📦 অর্ডার</button>
       <button data-tab="products" onclick="showTab('products')">🎮 প্যাকেজ</button>
       <button data-tab="buyers" onclick="showTab('buyers')">👥 ক্রেতা</button>
+      <button data-tab="topups" onclick="showTab('topups')">💰 টপ-আপ <span class="badge" id="topup-badge" style="display:none"></span></button>
     </div>
 
     <section id="tab-stats">
@@ -96,6 +97,17 @@
       <div class="note">নোট: ফ্রি সার্ভারে রিস্টার্ট হলে নতুন প্যাকেজ/ছবি মুছে যেতে পারে — স্থায়ী রাখতে পেইড ডাটাবেজ লাগবে।<br>ডায়মন্ড ম্যানুয়ালি পাঠানো হয় — অর্ডার "ডেলিভার্ড" মার্ক করার আগে নিজে ডায়মন্ড পাঠিয়ে নিন।</div>
       <button onclick="openForm()">➕ নতুন প্যাকেজ</button>
       <div class="pgrid" id="product-grid" style="margin-top:12px"></div>
+    </section>
+
+    <section id="tab-topups" style="display:none">
+      <div class="card">
+        <h2>ব্যালেন্স রিকোয়েস্ট <span class="badge" id="topup-count"></span></h2>
+        <p class="muted">পেমেন্ট ভেরিফাই করে <b>অনুমোদন</b> চাপুন — ব্যালেন্স যোগ হয়ে যাবে।</p>
+        <div class="tblwrap"><table>
+          <thead><tr><th>ID</th><th>নাম/ফোন</th><th>টাকা</th><th>মাধ্যম</th><th>TrxID</th><th>স্ট্যাটাস</th><th></th></tr></thead>
+          <tbody id="topup-rows"></tbody>
+        </table></div>
+      </div>
     </section>
 
     <section id="tab-buyers" style="display:none">
@@ -156,24 +168,55 @@ async function doLogin() {
 }
 
 function showTab(name) {
-  ["stats", "orders", "products", "buyers"].forEach(t => {
+  ["stats", "orders", "products", "buyers", "topups"].forEach(t => {
     document.getElementById("tab-" + t).style.display = t === name ? "block" : "none";
     document.querySelector('[data-tab="' + t + '"]').classList.toggle("active", t === name);
   });
 }
 
 async function loadAll() {
-  const [st, or, pr, by] = await Promise.all([
+  const [st, or, pr, by, tp] = await Promise.all([
     fetch("/api/admin/stats" + pwq()).then(r => r.json()),
     fetch("/api/admin/orders" + pwq()).then(r => r.json()),
     fetch("/api/admin/products" + pwq()).then(r => r.json()),
     fetch("/api/admin/buyers" + pwq()).then(r => r.json()),
+    fetch("/api/admin/topups" + pwq()).then(r => r.json()),
   ]);
   renderStats(st, or.orders || []);
   renderOrders(or.orders || []);
   PRODUCTS = pr.products || [];
   renderProducts();
   renderBuyers(by.buyers || []);
+  renderTopups(tp.topups || []);
+  const pend = (tp.topups || []).filter(t => t.status === "pending").length;
+  const badge = document.getElementById("topup-badge");
+  badge.style.display = pend ? "inline-block" : "none";
+  badge.textContent = pend;
+}
+
+const TOPUP_STATUS_BN = { pending: "অপেক্ষমাণ", approved: "✅ অনুমোদিত", rejected: "❌ বাতিল" };
+const TOPUP_PAY_BN = { bkash: "বিকাশ", nagad: "নগদ", qr: "বাংলা QR", wallet: "ওয়ালেট" };
+
+function renderTopups(topups) {
+  document.getElementById("topup-count").textContent = topups.length + "টি";
+  document.getElementById("topup-rows").innerHTML = topups.map(t => {
+    const act = t.status === "pending"
+      ? `<button onclick="topupAction(${t.id},'approve')">✅ অনুমোদন</button> <button onclick="topupAction(${t.id},'reject')">❌ বাতিল</button>`
+      : "";
+    return `<tr><td><b>${escapeHtml(t.topup_id)}</b></td>` +
+      `<td>${escapeHtml(t.user_name)}<br><small>${escapeHtml(t.user_phone)}</small></td>` +
+      `<td><b>৳${t.amount}</b><br><small>${escapeHtml(t.sender_number)}</small></td>` +
+      `<td>${TOPUP_PAY_BN[t.payment_method] || escapeHtml(t.payment_method)}</td>` +
+      `<td><b>${escapeHtml(t.trxid)}</b></td>` +
+      `<td>${TOPUP_STATUS_BN[t.status] || escapeHtml(t.status)}</td><td>${act}</td></tr>`;
+  }).join("");
+}
+
+async function topupAction(id, what) {
+  if (!confirm(what === "approve" ? "ব্যালেন্স যোগ করবেন?" : "রিকোয়েস্ট বাতিল করবেন?")) return;
+  const r = await fetch(`/api/admin/topups/${id}/${what}` + pwq(), { method: "POST" });
+  const d = await r.json();
+  if (d.ok) loadAll(); else alert("ব্যর্থ হয়েছে");
 }
 
 function renderStats(st, orders) {

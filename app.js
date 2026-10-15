@@ -6,11 +6,10 @@
 const TOKEN_KEY = "topupbd_token";
 
 let authToken = localStorage.getItem(TOKEN_KEY) || null;
-let account = null; // {name, phone} after login
+let account = null; // {name, phone, balance} after login
 let products = [];
 let activeCategory = "সব";
 let buyProduct = null; // product being purchased
-let moneySent = false; // has the user confirmed sending money (step 2)?
 let pendingBuy = false; // true when buy was clicked before login
 
 const $ = (id) => document.getElementById(id);
@@ -31,8 +30,9 @@ const ERROR_BN = {
   invalid_credentials: "মোবাইল নম্বর বা পাসওয়ার্ড ভুল হয়েছে।",
   invalid_trxid: "সঠিক Transaction ID দিন (টাকা পাঠানোর পর পাওয়া কোড)।",
   invalid_payment_method: "পেমেন্ট মাধ্যম বেছে নিন।",
-  money_not_sent: "আগে টাকা পাঠিয়ে 'টাকা পাঠিয়েছি' বাটন চাপুন।",
   invalid_items: "প্যাকেজ বাছাইয়ে সমস্যা — আবার চেষ্টা করুন।",
+  insufficient_balance: "ব্যালেন্স কম আছে — উপরে Add Money করে ব্যালেন্স যোগ করুন।",
+  invalid_amount: "সঠিক টাকার পরিমাণ দিন (৳১০ – ৳১,০০,০০০)।",
   network: "নেটওয়ার্ক সমস্যা — আবার চেষ্টা করুন।",
 };
 
@@ -41,13 +41,14 @@ const SHOP_PAY_NUMBERS = { bkash: "01902461583", nagad: "01902461583", qr: "0190
 function currentPayMethod() { return payMethod; }
 function refreshPayUI() {
   const m = payMethod;
-  $("pay-number").textContent = SHOP_PAY_NUMBERS[m] || SHOP_PAY_NUMBERS.bkash;
-  $("pay-method-label").textContent = PAYMENT_BN[m] || m;
-  const lbl2 = $("pay-method-label2");
-  if (lbl2) lbl2.textContent = PAYMENT_BN[m] || m;
-  const box = document.querySelector(".send-box");
-  if (box) box.style.borderColor = PAY_COLORS[m] || PAY_COLORS.bkash;
-  if (buyProduct) $("pay-amount").textContent = taka(buyProduct.price);
+  const num = SHOP_PAY_NUMBERS[m] || SHOP_PAY_NUMBERS.bkash;
+  const name = PAYMENT_BN[m] || m;
+  const hpNum = $("hp-pay-number");
+  if (hpNum) hpNum.textContent = num;
+  const hpMethod = $("hp-pay-method");
+  if (hpMethod) hpMethod.textContent = name;
+  const nbBox = $("pay-number-box");
+  if (nbBox) nbBox.style.borderColor = PAY_COLORS[m] || PAY_COLORS.bkash;
   document.querySelectorAll(".pay-card").forEach((c) => {
     c.classList.toggle("sel", c.dataset.m === m);
   });
@@ -127,7 +128,7 @@ async function doAuth(path, body) {
     if ((status === 200 || status === 201) && data && data.ok) {
       authToken = data.token;
       localStorage.setItem(TOKEN_KEY, authToken);
-      account = { name: data.name, phone: data.phone };
+      account = { name: data.name, phone: data.phone, balance: data.balance || 0 };
       closeAuth();
       renderAuthState();
       // Continue a purchase that was waiting for login
@@ -149,7 +150,17 @@ function renderAuthState() {
   $("logout-btn").classList.toggle("hidden", !loggedIn);
   $("orders-btn").classList.toggle("hidden", !loggedIn);
   $("user-chip").classList.toggle("hidden", !loggedIn);
-  if (loggedIn && account) $("user-chip").textContent = "👤 " + account.name;
+  $("balance-chip").classList.toggle("hidden", !loggedIn);
+  if (loggedIn && account) {
+    $("user-chip").textContent = "👤 " + account.name;
+    $("balance-chip").textContent = "💰 " + taka(account.balance || 0);
+  }
+}
+function setBalance(b) {
+  if (account) { account.balance = b; }
+  renderAuthState();
+  const bp = $("buy-balance");
+  if (bp) bp.textContent = taka(b);
 }
 
 /* ---------------- Products ---------------- */
@@ -229,17 +240,13 @@ function openBuy(id) {
   const p = products.find((x) => x.id === id);
   if (!p) return;
   buyProduct = p;
-  moneySent = false;
   const amountLine = isMembership(p) ? "🎫 " + p.name : "💎 " + bn(p.diamonds) + " Diamond";
   $("buy-summary").innerHTML =
     `<img src="${p.image}" alt="${escapeHtml(p.name)}">` +
     `<div><p><strong>${amountLine}</strong></p><p class="price">${taka(p.price)}</p></div>`;
   refreshPayUI();
-  $("trxid-step").classList.add("hidden");
-  const msBtn = $("money-sent");
-  msBtn.disabled = false;
-  msBtn.textContent = "✅ টাকা পাঠিয়েছি";
-  msBtn.classList.remove("done");
+  $("buy-price").textContent = taka(p.price);
+  $("buy-balance").textContent = taka(account ? account.balance || 0 : 0);
   $("buy-error").textContent = "";
   $("buy-modal").classList.remove("hidden");
 }
@@ -259,38 +266,83 @@ function wireBuy() {
   });
   $("buy-form").onsubmit = submitOrder;
   $("confirm-ok").onclick = () => $("confirm-modal").classList.add("hidden");
-  // Homepage payment method buttons
+  // Add Money: toggle options, select method, copy number
+  $("addmoney-toggle").onclick = () => {
+    $("pay-options").classList.toggle("hidden");
+  };
   document.querySelectorAll(".home-pay .pay-card").forEach((c) => {
     c.onclick = () => {
       payMethod = c.dataset.m;
+      $("pay-number-box").classList.remove("hidden");
       refreshPayUI();
     };
   });
-  $("copy-number").onclick = async () => {
-    const num = $("pay-number").textContent.trim();
-    const btn = $("copy-number");
+  $("hp-copy").onclick = async () => {
+    const num = $("hp-pay-number").textContent.trim();
+    const btn = $("hp-copy");
     try {
       await navigator.clipboard.writeText(num);
       btn.textContent = "✅ কপি হয়েছে!";
     } catch (e) {
-      // fallback: select the number text
-      const range = document.createRange();
-      range.selectNode($("pay-number"));
-      const sel = window.getSelection();
-      sel.removeAllRanges(); sel.addRange(range);
-      btn.textContent = "👆 নম্বর সিলেক্ট হয়েছে";
+      btn.textContent = "👆 নম্বরটি সিলেক্ট করুন";
     }
     setTimeout(() => { btn.textContent = "📋 কপি"; }, 2000);
   };
-  $("money-sent").onclick = () => {
-    moneySent = true;
-    $("trxid-step").classList.remove("hidden");
-    const btn = $("money-sent");
-    btn.disabled = true;
-    btn.textContent = "✓ ধন্যবাদ! এবার নিচে TrxID দিন";
-    btn.classList.add("done");
-    $("trxid-step").scrollIntoView({ behavior: "smooth", block: "nearest" });
-  };
+  // Balance top-up request
+  $("tp-submit").onclick = submitTopup;
+  $("tp-history-link").onclick = (e) => { e.preventDefault(); toggleTopupHistory(); };
+}
+
+const TOPUP_STATUS_BN = { pending: "অপেক্ষমাণ", approved: "✅ অনুমোদিত", rejected: "❌ বাতিল" };
+
+async function submitTopup() {
+  const errEl = $("tp-error");
+  errEl.textContent = "";
+  if (!authToken) { openAuth("ব্যালেন্স যোগ করতে লগইন করুন"); return; }
+  const amount = parseInt($("tp-amount").value, 10);
+  const sender = $("tp-sender").value.trim().replace(/[\s\-]/g, "");
+  const trxid = $("tp-trxid").value.trim().toUpperCase();
+  if (!(amount >= 10 && amount <= 100000)) { errEl.textContent = ERROR_BN.invalid_amount; return; }
+  if (!/^01[3-9]\d{8}$/.test(sender)) { errEl.textContent = ERROR_BN.invalid_sender_number; return; }
+  if (!/^[A-Z0-9]{6,20}$/.test(trxid)) { errEl.textContent = ERROR_BN.invalid_trxid; return; }
+  try {
+    const { status, data } = await api("/api/topup", {
+      method: "POST",
+      body: JSON.stringify({ amount, payment_method: payMethod, sender_number: sender, trxid }),
+    });
+    if (status === 201 && data && data.ok) {
+      $("tp-amount").value = ""; $("tp-sender").value = ""; $("tp-trxid").value = "";
+      errEl.textContent = "";
+      alert("✅ রিকোয়েস্ট পাঠানো হয়েছে! অ্যাডমিন ভেরিফাই করলে ব্যালেন্স যোগ হবে। (ID: " + data.topup_id + ")");
+    } else if (status === 401) {
+      openAuth("ব্যালেন্স যোগ করতে লগইন করুন");
+    } else {
+      errEl.textContent = ERROR_BN[(data && data.error)] || ERROR_BN.network;
+    }
+  } catch (e) {
+    errEl.textContent = ERROR_BN.network;
+  }
+}
+
+async function toggleTopupHistory() {
+  const box = $("tp-history");
+  if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
+  if (!authToken) { openAuth("লগইন করুন"); return; }
+  box.innerHTML = '<p class="muted center">লোড হচ্ছে…</p>';
+  box.classList.remove("hidden");
+  try {
+    const { status, data } = await api("/api/topup/mine");
+    if (status === 200 && data && data.ok) {
+      if (!data.topups.length) { box.innerHTML = '<p class="muted center">কোনো রিকোয়েস্ট নেই।</p>'; return; }
+      box.innerHTML = data.topups.map((t) =>
+        `<div class="tp-row"><span>🧾 ${escapeHtml(t.topup_id)}</span>` +
+        `<span>৳${bn(t.amount)}</span>` +
+        `<span>${TOPUP_STATUS_BN[t.status] || escapeHtml(t.status)}</span></div>`
+      ).join("");
+    }
+  } catch (e) {
+    box.innerHTML = '<p class="muted center">লোড করা যায়নি।</p>';
+  }
 }
 
 async function submitOrder(e) {
@@ -301,33 +353,29 @@ async function submitOrder(e) {
   if (!authToken) { closeBuy(); pendingBuy = true; openAuth("অর্ডার করতে লগইন করুন"); return; }
 
   const uid = $("buy-uid").value.trim();
-  const senderNumber = $("buy-sender").value.trim().replace(/[\s\-]/g, "");
-  const trxid = $("buy-trxid").value.trim().toUpperCase();
-  const paymentMethod = payMethod;
 
   if (!/^[A-Za-z0-9]{6,20}$/.test(uid)) { errEl.textContent = ERROR_BN.invalid_uid; return; }
-  if (!/^01[3-9]\d{8}$/.test(senderNumber)) { errEl.textContent = ERROR_BN.invalid_sender_number; return; }
-  if (!["bkash", "nagad", "qr"].includes(paymentMethod)) { errEl.textContent = ERROR_BN.invalid_payment_method; return; }
-  if (!moneySent) { errEl.textContent = ERROR_BN.money_not_sent; return; }
-  if (!/^[A-Z0-9]{6,20}$/.test(trxid)) { errEl.textContent = ERROR_BN.invalid_trxid; return; }
+  // Wallet: price is deducted from balance server-side.
+  const bal = account ? account.balance || 0 : 0;
+  if (bal < buyProduct.price) { errEl.textContent = ERROR_BN.insufficient_balance; return; }
 
   try {
     const { status, data } = await api("/api/orders", {
       method: "POST",
       body: JSON.stringify({
         uid,
-        sender_number: senderNumber,
-        payment_method: paymentMethod,
-        trxid,
         items: [{ id: buyProduct.id, qty: 1 }],
       }),
     });
     if (status === 201 && data && data.ok) {
       closeBuy();
       $("buy-form").reset();
+      setBalance(data.balance);
       $("confirm-order-id").textContent = data.order_id;
       $("confirm-total").textContent = "সর্বমোট: " + taka(data.total);
       $("confirm-modal").classList.remove("hidden");
+    } else if (status === 402) {
+      errEl.textContent = ERROR_BN.insufficient_balance;
     } else if (status === 401) {
       closeBuy();
       authToken = null;
@@ -406,7 +454,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       const { status, data } = await api("/api/auth/me");
       if (status === 200 && data && data.ok) {
-        account = { name: data.name, phone: data.phone };
+        account = { name: data.name, phone: data.phone, balance: data.balance || 0 };
         renderAuthState();
       } else {
         authToken = null;
