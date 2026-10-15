@@ -250,3 +250,36 @@ footer { border-top: 1px solid var(--line); background: var(--bg2); margin-top: 
 /* WhatsApp floating button */
 #wa-float{position:fixed;right:16px;bottom:16px;z-index:60;width:56px;height:56px;border-radius:50%;background:#25D366;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.35);transition:transform .15s}
 #wa-float:hover{transform:scale(1.08)}
+
+/* ---- Professional 3-step payment flow ---- */
+.pay-step{background:#161d33;border:1px solid #232c4d;border-radius:14px;padding:14px;margin:12px 0}
+.step-title{font-weight:700;margin-bottom:10px;font-size:15px;color:#ffd9a0}
+.step-num{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#ff9f1a,#ff6b1a);color:#1a1206;font-size:14px;font-weight:800;margin-right:8px}
+.send-box{border-color:#ff9f1a;background:linear-gradient(180deg,#1a1430,#141a30)}
+.send-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#0d1220;border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.send-num small{display:block;color:#8b93b0;font-size:12px}
+.send-num strong{font-size:22px;letter-spacing:2px;color:#ffd9a0}
+.btn-copy{background:#232c4d;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-copy:active{transform:scale(.95)}
+.send-amount{font-size:16px;margin:6px 0}
+.send-amount strong{color:#ff9f1a;font-size:20px}
+.btn-sent{width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-size:16px;font-weight:800;cursor:pointer;margin-top:8px}
+.btn-sent.done{background:#2a3358;color:#9aa3c0;cursor:default}
+.btn-sent:not(.done):active{transform:scale(.98)}
+
+/* ---- Add Money button + payment picker ---- */
+.btn-addmoney{display:flex;align-items:center;gap:12px;width:100%;padding:10px 14px;background:#10162a;border:2px solid #2a3358;border-radius:14px;color:#fff;cursor:pointer;text-align:left;transition:.15s}
+.btn-addmoney:hover{border-color:#ff9f1a}
+.btn-addmoney img{width:52px;height:52px;border-radius:12px;object-fit:cover}
+.btn-addmoney span strong{display:block;font-size:17px}
+.btn-addmoney span small{color:#8b93b0;font-size:12px}
+.btn-addmoney .chev{margin-left:auto;font-size:28px;color:#ff9f1a;font-weight:700}
+.pay-modal{max-width:420px}
+.pay-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.pay-card{border:3px solid transparent;border-radius:16px;background:#10162a;padding:10px 6px;cursor:pointer;color:#fff;transition:.15s;position:relative;overflow:hidden}
+.pay-card::before{content:"";position:absolute;inset:0;background:var(--brand);opacity:.18}
+.pay-card img{width:100%;aspect-ratio:1;border-radius:12px;object-fit:cover;position:relative}
+.pay-card span{display:block;margin-top:8px;font-weight:800;font-size:15px;position:relative}
+.pay-card.sel{border-color:var(--brand);box-shadow:0 0 14px var(--brand)}
+.pay-card:active{transform:scale(.96)}
+.center{text-align:center}
