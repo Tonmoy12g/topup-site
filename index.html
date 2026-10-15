@@ -33,6 +33,23 @@
   </div>
 </section>
 
+<!-- ============ PAYMENT METHOD (homepage) ============ -->
+<section class="payselect" id="payselect">
+  <h2>💰 Add Money</h2>
+  <div class="pay-cards home-pay">
+    <button type="button" class="pay-card" data-m="bkash" style="--brand:#e2136e">
+      <img src="bkash.png" alt="বিকাশ"><span>bKash</span>
+    </button>
+    <button type="button" class="pay-card" data-m="nagad" style="--brand:#f6921e">
+      <img src="nagad.png" alt="নগদ"><span>Nagad</span>
+    </button>
+    <button type="button" class="pay-card" data-m="qr" style="--brand:#d42a1e">
+      <img src="banglaqr.png" alt="বাংলা QR"><span>Bangla QR</span>
+    </button>
+  </div>
+  <p class="muted small center">প্যাকেজ কেনার আগে মাধ্যম সিলেক্ট করুন</p>
+</section>
+
 <!-- ============ CATALOG ============ -->
 <section class="catalog" id="catalog">
   <h2>🎮 টপ-আপ প্যাকেজ</h2>
@@ -129,19 +146,9 @@
     <form id="buy-form">
       <label>Free Fire Player ID (UID)<input id="buy-uid" type="text" placeholder="যেমন: 5123456789" required></label>
 
-      <!-- ধাপ ১: Add Money -->
-      <div class="pay-step">
-        <p class="step-title"><span class="step-num">১</span> পেমেন্ট মাধ্যম বাছুন</p>
-        <button type="button" id="add-money-btn" class="btn-addmoney">
-          <span class="add-ico">⊕</span>
-          <span><strong>Add Money</strong><small id="add-money-sub">বিকাশ দিয়ে পেমেন্ট করুন</small></span>
-          <img id="add-money-img" src="bkash.png" alt="">
-        </button>
-      </div>
-
-      <!-- ধাপ ২: টাকা পাঠান (আলাদা বক্স) -->
+      <!-- ধাপ ১: টাকা পাঠান -->
       <div class="pay-step send-box">
-        <p class="step-title"><span class="step-num">২</span> টাকা পাঠান</p>
+        <p class="step-title"><span class="step-num">১</span> টাকা পাঠান <small class="muted">(<span id="pay-method-label2">বিকাশ</span> সিলেক্টেড)</small></p>
         <div class="send-row">
           <div class="send-num">
             <small><span id="pay-method-label">বিকাশ</span> মার্চেন্ট নম্বর</small>
@@ -154,9 +161,9 @@
         <button type="button" id="money-sent" class="btn-sent">✅ টাকা পাঠিয়েছি</button>
       </div>
 
-      <!-- ধাপ ৩: TrxID -->
+      <!-- ধাপ ২: TrxID -->
       <div id="trxid-step" class="pay-step hidden">
-        <p class="step-title"><span class="step-num">৩</span> Transaction ID দিন</p>
+        <p class="step-title"><span class="step-num">২</span> Transaction ID দিন</p>
         <label>টাকা পাঠানোর নম্বর<input id="buy-sender" type="tel" placeholder="যে নম্বর থেকে টাকা পাঠিয়েছেন" required></label>
         <label>Transaction ID (TrxID)<input id="buy-trxid" type="text" placeholder="যেমন: 9HX7K2M4PQ" autocomplete="off" required></label>
       </div>
@@ -164,26 +171,6 @@
       <p id="buy-error" class="error"></p>
       <button type="submit" class="btn-primary">🧾 অর্ডার কনফার্ম করুন</button>
     </form>
-  </div>
-</div>
-
-<!-- ============ PAYMENT PICKER ============ -->
-<div id="pay-picker" class="hidden modal-wrap">
-  <div class="modal pay-modal">
-    <button id="paypicker-close" class="modal-x" aria-label="বন্ধ করুন">✕</button>
-    <div class="pay-head">Select Payment Method</div>
-    <div class="pay-cards">
-      <button type="button" class="pay-card" data-m="bkash" style="--brand:#e2136e">
-        <img src="bkash.png" alt="বিকাশ"><span>bKash</span>
-      </button>
-      <button type="button" class="pay-card" data-m="nagad" style="--brand:#f6921e">
-        <img src="nagad.png" alt="নগদ"><span>Nagad</span>
-      </button>
-      <button type="button" class="pay-card" data-m="qr" style="--brand:#d42a1e">
-        <img src="banglaqr.png" alt="বাংলা QR"><span>Bangla QR</span>
-      </button>
-    </div>
-    <button type="button" id="pay-now-btn" class="btn-paynow">Pay ৳০ BDT</button>
   </div>
 </div>
 

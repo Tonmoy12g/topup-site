@@ -43,23 +43,18 @@ function refreshPayUI() {
   const m = payMethod;
   $("pay-number").textContent = SHOP_PAY_NUMBERS[m] || SHOP_PAY_NUMBERS.bkash;
   $("pay-method-label").textContent = PAYMENT_BN[m] || m;
-  $("add-money-img").src = PAY_IMAGES[m] || PAY_IMAGES.bkash;
-  $("add-money-sub").textContent = (PAYMENT_BN[m] || m) + " দিয়ে পেমেন্ট করুন";
+  const lbl2 = $("pay-method-label2");
+  if (lbl2) lbl2.textContent = PAYMENT_BN[m] || m;
   const box = document.querySelector(".send-box");
   if (box) box.style.borderColor = PAY_COLORS[m] || PAY_COLORS.bkash;
   if (buyProduct) $("pay-amount").textContent = taka(buyProduct.price);
-  $("pay-now-btn").textContent = "Pay " + (buyProduct ? bn(buyProduct.price) + ".00" : "0.00") + " BDT";
   document.querySelectorAll(".pay-card").forEach((c) => {
-    c.classList.toggle("sel", c.dataset.m === tempPayMethod);
+    c.classList.toggle("sel", c.dataset.m === m);
   });
-  $("pay-method-label").textContent = PAYMENT_BN[m] || m;
-  if (buyProduct) $("pay-amount").textContent = taka(buyProduct.price);
 }
 const PAYMENT_BN = { bkash: "বিকাশ", nagad: "নগদ", qr: "বাংলা QR" };
-const PAY_IMAGES = { bkash: "bkash.png", nagad: "nagad.png", qr: "banglaqr.png" };
 const PAY_COLORS = { bkash: "#e2136e", nagad: "#f6921e", qr: "#d42a1e" };
-let payMethod = "bkash"; // selected payment method (via Add Money picker)
-let tempPayMethod = "bkash"; // highlighted card inside the picker
+let payMethod = "bkash"; // selected payment method (via homepage buttons)
 const STATUS_BN = { pending: "অপেক্ষমাণ", confirmed: "কনফার্মড", delivered: "ডেলিভার্ড", cancelled: "বাতিল" };
 
 const CATEGORIES = ["সব", "ডায়মন্ড", "মেম্বারশিপ"];
@@ -264,27 +259,13 @@ function wireBuy() {
   });
   $("buy-form").onsubmit = submitOrder;
   $("confirm-ok").onclick = () => $("confirm-modal").classList.add("hidden");
-  // Add Money picker
-  $("add-money-btn").onclick = () => {
-    tempPayMethod = payMethod;
-    refreshPayUI();
-    $("pay-picker").classList.remove("hidden");
-  };
-  $("paypicker-close").onclick = () => $("pay-picker").classList.add("hidden");
-  $("pay-picker").addEventListener("click", (e) => {
-    if (e.target.id === "pay-picker") $("pay-picker").classList.add("hidden");
-  });
-  document.querySelectorAll(".pay-card").forEach((c) => {
+  // Homepage payment method buttons
+  document.querySelectorAll(".home-pay .pay-card").forEach((c) => {
     c.onclick = () => {
-      tempPayMethod = c.dataset.m;
+      payMethod = c.dataset.m;
       refreshPayUI();
     };
   });
-  $("pay-now-btn").onclick = () => {
-    payMethod = tempPayMethod;
-    refreshPayUI();
-    $("pay-picker").classList.add("hidden");
-  };
   $("copy-number").onclick = async () => {
     const num = $("pay-number").textContent.trim();
     const btn = $("copy-number");
@@ -417,6 +398,7 @@ function escapeHtml(s) {
 document.addEventListener("DOMContentLoaded", async () => {
   wireAuth();
   wireBuy();
+  refreshPayUI();
   renderAuthState();
   await loadProducts();
   // Restore session if a token is saved
