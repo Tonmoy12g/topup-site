@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TONMOY Topup — অ্যাডমিন</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, "Noto Sans Bengali", sans-serif; margin: 0; background: #0d1220; color: #f2f4fa; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  h1 { color: #ff9f1a; font-size: 22px; }
+  h2 { color: #ff9f1a; font-size: 18px; margin: 0 0 12px; }
+  .card { background: #161d33; border: 1px solid #26304d; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  input, select, textarea, button { font-size: 15px; padding: 10px 12px; border-radius: 8px; border: 1px solid #26304d; width: 100%; margin-bottom: 10px; font-family: inherit; background: #0d1220; color: #f2f4fa; }
+  textarea { min-height: 70px; resize: vertical; }
+  button { background: linear-gradient(135deg, #ff9f1a, #ff6b1a); color: #1a1206; border: none; cursor: pointer; width: auto; padding: 10px 18px; font-weight: 700; }
+  button.secondary { background: transparent; color: #ff9f1a; border: 1px solid #ff9f1a; }
+  button.danger { background: #c0392b; color: #fff; }
+  button.small { padding: 6px 10px; font-size: 13px; margin: 2px; }
+  .error { color: #e74c3c; }
+  .note { background: rgba(241,196,15,.08); border: 1px solid #f1c40f; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; color: #f1c40f; }
+  .tabs { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 16px; }
+  .tabs button { white-space: nowrap; margin: 0; }
+  .tabs button.active { background: #ff9f1a; }
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stat { background: #161d33; border: 1px solid #26304d; border-radius: 12px; padding: 16px; text-align: center; }
+  .stat .num { font-size: 26px; font-weight: bold; color: #ff9f1a; }
+  .stat .lbl { font-size: 13px; color: #9aa3c0; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #26304d; vertical-align: top; }
+  th { color: #ff9f1a; }
+  .tblwrap { overflow-x: auto; }
+  .badge { background: #2ecc71; color: #0d1220; padding: 2px 10px; border-radius: 20px; font-size: 12px; display: inline-block; margin: 2px; font-weight: 700; }
+  .status { font-weight: bold; }
+  .status.pending { color: #f1c40f; } .status.confirmed { color: #3498db; }
+  .status.delivered { color: #2ecc71; } .status.cancelled { color: #e74c3c; }
+  select.status-sel { width: auto; margin: 0; padding: 6px 8px; font-size: 13px; }
+  .pgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .pcard { background: #161d33; border: 1px solid #26304d; border-radius: 12px; padding: 10px; }
+  .pcard img { width: 100%; height: 110px; object-fit: cover; border-radius: 8px; background: #0a0e1a; }
+  .pcard .nm { font-weight: bold; font-size: 14px; margin: 6px 0 2px; }
+  .pcard .pr { color: #2ecc71; font-weight: bold; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: flex; align-items: flex-start; justify-content: center; padding: 16px; overflow-y: auto; z-index: 50; }
+  .modal { background: #161d33; border: 1px solid #26304d; border-radius: 14px; padding: 18px; width: 100%; max-width: 480px; margin: 20px 0; }
+  #photo-preview { max-width: 100%; max-height: 160px; border-radius: 8px; display: none; margin-bottom: 10px; }
+  label { font-size: 13px; color: #9aa3c0; display: block; margin-bottom: 4px; }
+  @media (min-width: 700px) { .stats { grid-template-columns: repeat(4, 1fr); } .pgrid { grid-template-columns: repeat(3, 1fr); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎮 TONMOY Topup — অ্যাডমিন</h1>
+
+  <div class="card" id="login-card">
+    <p>অ্যাডমিন পাসওয়ার্ড দিন:</p>
+    <input type="password" id="pw" placeholder="পাসওয়ার্ড" style="max-width:320px">
+    <button onclick="doLogin()">প্রবেশ</button>
+    <p class="error" id="err"></p>
+  </div>
+
+  <div id="dash" style="display:none">
+    <div class="tabs">
+      <button class="active" data-tab="stats" onclick="showTab('stats')">📊 ড্যাশবোর্ড</button>
+      <button data-tab="orders" onclick="showTab('orders')">📦 অর্ডার</button>
+      <button data-tab="products" onclick="showTab('products')">🎮 প্যাকেজ</button>
+      <button data-tab="buyers" onclick="showTab('buyers')">👥 ক্রেতা</button>
+    </div>
+
+    <section id="tab-stats">
+      <div class="stats">
+        <div class="stat"><div class="num" id="st-orders">0</div><div class="lbl">মোট অর্ডার</div></div>
+        <div class="stat"><div class="num" id="st-revenue">৳০</div><div class="lbl">মোট বিক্রি</div></div>
+        <div class="stat"><div class="num" id="st-buyers">0</div><div class="lbl">ক্রেতা</div></div>
+        <div class="stat"><div class="num" id="st-products">0</div><div class="lbl">প্যাকেজ</div></div>
+      </div>
+      <div class="card">
+        <h2>সাম্প্রতিক অর্ডার</h2>
+        <div class="tblwrap"><table>
+          <thead><tr><th>অর্ডার আইডি</th><th>UID</th><th>মোট</th><th>স্ট্যাটাস</th></tr></thead>
+          <tbody id="recent-rows"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <section id="tab-orders" style="display:none">
+      <div class="card">
+        <h2>অর্ডারসমূহ <span class="badge" id="order-count"></span></h2>
+        <div class="tblwrap"><table>
+          <thead><tr><th>অর্ডার আইডি</th><th>তারিখ</th><th>UID</th><th>ফোন</th><th>প্যাকেজ</th><th>মোট</th><th>পেমেন্ট</th><th>স্ট্যাটাস</th></tr></thead>
+          <tbody id="order-rows"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <section id="tab-products" style="display:none">
+      <div class="note">নোট: ফ্রি সার্ভারে রিস্টার্ট হলে নতুন প্যাকেজ/ছবি মুছে যেতে পারে — স্থায়ী রাখতে পেইড ডাটাবেজ লাগবে।<br>ডায়মন্ড ম্যানুয়ালি পাঠানো হয় — অর্ডার "ডেলিভার্ড" মার্ক করার আগে নিজে ডায়মন্ড পাঠিয়ে নিন।</div>
+      <button onclick="openForm()">➕ নতুন প্যাকেজ</button>
+      <div class="pgrid" id="product-grid" style="margin-top:12px"></div>
+    </section>
+
+    <section id="tab-buyers" style="display:none">
+      <div class="card">
+        <h2>ক্রেতা <span class="badge" id="buyer-count"></span></h2>
+        <div class="tblwrap"><table>
+          <thead><tr><th>ফোন</th><th>অর্ডার সংখ্যা</th><th>মোট খরচ</th><th>শেষ অর্ডার</th></tr></thead>
+          <tbody id="buyer-rows"></tbody>
+        </table></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="modal-bg" id="pform-bg" style="display:none">
+  <div class="modal">
+    <h2 id="pform-title">নতুন প্যাকেজ</h2>
+    <input type="hidden" id="f-id">
+    <label>প্যাকেজের নাম *</label><input id="f-name" placeholder="যেমন: 500 Diamond">
+    <label>ডায়মন্ড সংখ্যা * (মেম্বারশিপ হলে 0)</label><input id="f-diamonds" type="number" min="0" placeholder="যেমন: 500">
+    <label>ক্যাটাগরি *</label><input id="f-category" placeholder="ডায়মন্ড / মেম্বারশিপ">
+    <label>দাম (৳) *</label><input id="f-price" type="number" min="1" placeholder="যেমন: 340">
+    <label>ব্যাজ (ঐচ্ছিক)</label><input id="f-badge" placeholder="যেমন: জনপ্রিয় / বেস্ট সেলার">
+    <label>বিবরণ *</label><textarea id="f-desc"></textarea>
+    <label>ছবি *</label>
+    <img id="photo-preview" alt="">
+    <input id="f-photo" type="file" accept=".jpg,.jpeg,.png,.webp">
+    <div id="f-err" class="error"></div>
+    <button onclick="saveProduct()">💾 সংরক্ষণ</button>
+    <button class="secondary" onclick="closeForm()">বাতিল</button>
+  </div>
+</div>
+
+<script>
+let ADMIN_PW = "";
+let PRODUCTS = [];
+const STATUS_BN = { pending: "অপেক্ষমাণ", confirmed: "কনফার্মড", delivered: "ডেলিভার্ড", cancelled: "বাতিল" };
+const PAY_BN = { bkash: "বিকাশ", nagad: "নগদ" };
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function pwq() { return "?password=" + encodeURIComponent(ADMIN_PW); }
+function fmtDate(iso) { try { return new Date(iso).toLocaleString("bn-BD"); } catch (e) { return ""; } }
+
+async function doLogin() {
+  ADMIN_PW = document.getElementById("pw").value;
+  const err = document.getElementById("err");
+  err.textContent = "";
+  try {
+    const res = await fetch("/api/admin/stats" + pwq());
+    if (!res.ok) { err.textContent = "ভুল পাসওয়ার্ড।"; return; }
+    document.getElementById("login-card").style.display = "none";
+    document.getElementById("dash").style.display = "block";
+    await loadAll();
+  } catch (e) { err.textContent = "নেটওয়ার্ক সমস্যা — আবার চেষ্টা করুন।"; }
+}
+
+function showTab(name) {
+  ["stats", "orders", "products", "buyers"].forEach(t => {
+    document.getElementById("tab-" + t).style.display = t === name ? "block" : "none";
+    document.querySelector('[data-tab="' + t + '"]').classList.toggle("active", t === name);
+  });
+}
+
+async function loadAll() {
+  const [st, or, pr, by] = await Promise.all([
+    fetch("/api/admin/stats" + pwq()).then(r => r.json()),
+    fetch("/api/admin/orders" + pwq()).then(r => r.json()),
+    fetch("/api/admin/products" + pwq()).then(r => r.json()),
+    fetch("/api/admin/buyers" + pwq()).then(r => r.json()),
+  ]);
+  renderStats(st, or.orders || []);
+  renderOrders(or.orders || []);
+  PRODUCTS = pr.products || [];
+  renderProducts();
+  renderBuyers(by.buyers || []);
+}
+
+function renderStats(st, orders) {
+  document.getElementById("st-orders").textContent = st.total_orders || 0;
+  document.getElementById("st-revenue").textContent = "৳" + (st.total_revenue || 0);
+  document.getElementById("st-buyers").textContent = st.total_buyers || 0;
+  document.getElementById("st-products").textContent = st.total_products || 0;
+  document.getElementById("recent-rows").innerHTML = orders.slice(0, 5).map(o =>
+    `<tr><td><b>${escapeHtml(o.order_id)}</b></td><td>${escapeHtml(o.uid)}</td>` +
+    `<td>৳${o.total}</td><td class="status ${escapeHtml(o.status)}">${escapeHtml(STATUS_BN[o.status] || o.status)}</td></tr>`
+  ).join("");
+}
+
+function statusOptions(cur) {
+  return ["pending", "confirmed", "delivered", "cancelled"].map(s =>
+    `<option value="${s}"${s === cur ? " selected" : ""}>${STATUS_BN[s]}</option>`).join("");
+}
+
+function renderOrders(orders) {
+  document.getElementById("order-count").textContent = orders.length + "টি";
+  document.getElementById("order-rows").innerHTML = orders.map(o => {
+    const items = (o.items || []).map(i => `${escapeHtml(i.name)} × ${i.qty}`).join("<br>");
+    const payTxt = (PAY_BN[o.payment_method] || escapeHtml(o.payment_method)) +
+      "<br><b>" + escapeHtml(o.trxid || "—") + "</b>";
+    return `<tr>
+      <td><b>${escapeHtml(o.order_id)}</b></td><td>${fmtDate(o.created_at)}</td>
+      <td>${escapeHtml(o.uid)}</td><td>${escapeHtml(o.phone)}</td>
+      <td>${items}</td><td>৳${o.total}</td><td>${payTxt}</td>
+      <td><select class="status-sel" onchange="setStatus('${escapeHtml(o.order_id)}', this.value)">${statusOptions(o.status)}</select></td>
+    </tr>`;
+  }).join("");
+}
+
+async function setStatus(orderId, status) {
+  const res = await fetch("/api/admin/orders/" + encodeURIComponent(orderId) + "/status" + pwq(), {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status })
+  });
+  if (!res.ok) { alert("স্ট্যাটাস বদলানো যায়নি।"); }
+  const or = await fetch("/api/admin/orders" + pwq()).then(r => r.json());
+  renderOrders(or.orders || []);
+}
+
+function renderProducts() {
+  document.getElementById("product-grid").innerHTML = PRODUCTS.map(p =>
+    `<div class="pcard">
+      <img src="/${escapeHtml(p.image)}" alt="" loading="lazy" onerror="this.style.display='none'">
+      <div class="nm">${escapeHtml(p.name)}</div>
+      <div class="pr">৳${p.price}</div>
+      <div>${p.badge ? `<span class="badge">${escapeHtml(p.badge)}</span>` : ""}</div>
+      <div style="margin-top:6px">
+        <button class="small secondary" onclick="openForm('${escapeHtml(p.id)}')">✏️ এডিট</button>
+        <button class="small danger" onclick="delProduct('${escapeHtml(p.id)}')">🗑️ মুছুন</button>
+      </div>
+    </div>`).join("");
+}
+
+function openForm(pid) {
+  const p = pid ? PRODUCTS.find(x => x.id === pid) : null;
+  document.getElementById("pform-title").textContent = p ? "প্যাকেজ এডিট" : "নতুন প্যাকেজ";
+  document.getElementById("f-id").value = p ? p.id : "";
+  document.getElementById("f-name").value = p ? p.name : "";
+  document.getElementById("f-diamonds").value = p ? (p.diamonds != null ? p.diamonds : "") : "";
+  document.getElementById("f-category").value = p ? p.category : "";
+  document.getElementById("f-price").value = p ? p.price : "";
+  document.getElementById("f-badge").value = p ? (p.badge || "") : "";
+  document.getElementById("f-desc").value = p ? p.description : "";
+  document.getElementById("f-photo").value = "";
+  const prev = document.getElementById("photo-preview");
+  if (p && p.image) { prev.src = "/" + p.image; prev.style.display = "block"; }
+  else { prev.style.display = "none"; prev.src = ""; }
+  document.getElementById("f-err").textContent = "";
+  document.getElementById("pform-bg").style.display = "flex";
+}
+function closeForm() { document.getElementById("pform-bg").style.display = "none"; }
+
+document.getElementById("f-photo").addEventListener("change", function () {
+  const f = this.files[0];
+  const prev = document.getElementById("photo-preview");
+  if (!f) { prev.style.display = "none"; return; }
+  const rd = new FileReader();
+  rd.onload = e => { prev.src = e.target.result; prev.style.display = "block"; };
+  rd.readAsDataURL(f);
+});
+
+async function uploadPhoto(file) {
+  const fd = new FormData();
+  fd.append("photo", file);
+  const res = await fetch("/api/admin/products/upload" + pwq(), { method: "POST", body: fd });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.error || "upload_failed");
+  return data.image;
+}
+
+async function saveProduct() {
+  const errEl = document.getElementById("f-err");
+  errEl.textContent = "";
+  const pid = document.getElementById("f-id").value;
+  const diaRaw = document.getElementById("f-diamonds").value;
+  const body = {
+    name: document.getElementById("f-name").value.trim(),
+    diamonds: diaRaw === "" ? null : Number(diaRaw),
+    category: document.getElementById("f-category").value.trim(),
+    price: Number(document.getElementById("f-price").value),
+    badge: document.getElementById("f-badge").value.trim(),
+    description: document.getElementById("f-desc").value.trim(),
+  };
+  if (!body.name || body.diamonds == null || body.diamonds < 0 || !body.category || !(body.price > 0) || !body.description) {
+    errEl.textContent = "তারকা (*) চিহ্নিত সব ঘর পূরণ করুন।"; return;
+  }
+  try {
+    const file = document.getElementById("f-photo").files[0];
+    if (file) body.image = await uploadPhoto(file);
+    else if (!pid) { errEl.textContent = "প্যাকেজের ছবি দিন।"; return; }
+    const url = pid ? "/api/admin/products/" + encodeURIComponent(pid) + pwq()
+                    : "/api/admin/products" + pwq();
+    const res = await fetch(url, {
+      method: pid ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) { errEl.textContent = "সংরক্ষণ হয়নি (" + (data.error || "error") + ")।"; return; }
+    closeForm();
+    const pr = await fetch("/api/admin/products" + pwq()).then(r => r.json());
+    PRODUCTS = pr.products || [];
+    renderProducts();
+    const st = await fetch("/api/admin/stats" + pwq()).then(r => r.json());
+    document.getElementById("st-products").textContent = st.total_products || 0;
+  } catch (e) { errEl.textContent = "ছবি আপলোড হয়নি — JPG/PNG (সর্বোচ্চ ৫MB) দিন।"; }
+}
+
+async function delProduct(pid) {
+  const p = PRODUCTS.find(x => x.id === pid);
+  if (!confirm("মুছে ফেলবেন?\n" + (p ? p.name : pid))) return;
+  const res = await fetch("/api/admin/products/" + encodeURIComponent(pid) + pwq(), { method: "DELETE" });
+  if (!res.ok) { alert("মোছা যায়নি।"); return; }
+  const pr = await fetch("/api/admin/products" + pwq()).then(r => r.json());
+  PRODUCTS = pr.products || [];
+  renderProducts();
+}
+
+function renderBuyers(buyers) {
+  document.getElementById("buyer-count").textContent = buyers.length + " জন";
+  document.getElementById("buyer-rows").innerHTML = buyers.map(b =>
+    `<tr><td>${escapeHtml(b.phone)}</td><td>${b.order_count}</td>` +
+    `<td>৳${b.total_spent}</td><td>${fmtDate(b.last_order)}</td></tr>`).join("");
+}
+</script>
+</body>
+</html>
