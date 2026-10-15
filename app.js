@@ -37,7 +37,7 @@ const ERROR_BN = {
 };
 
 // ⭐ নিজের বিকাশ/নগদ নম্বর এখানে বসান (যে নম্বরে কাস্টমার টাকা পাঠাবে)
-const SHOP_PAY_NUMBERS = { bkash: "01902461583", nagad: "01902461583", rocket: "01902461583" };
+const SHOP_PAY_NUMBERS = { bkash: "01902461583", nagad: "01902461583", qr: "01902461583" };
 function currentPayMethod() { return payMethod; }
 function refreshPayUI() {
   const m = payMethod;
@@ -48,16 +48,18 @@ function refreshPayUI() {
   const box = document.querySelector(".send-box");
   if (box) box.style.borderColor = PAY_COLORS[m] || PAY_COLORS.bkash;
   if (buyProduct) $("pay-amount").textContent = taka(buyProduct.price);
+  $("pay-now-btn").textContent = "Pay " + (buyProduct ? bn(buyProduct.price) + ".00" : "0.00") + " BDT";
   document.querySelectorAll(".pay-card").forEach((c) => {
-    c.classList.toggle("sel", c.dataset.m === m);
+    c.classList.toggle("sel", c.dataset.m === tempPayMethod);
   });
   $("pay-method-label").textContent = PAYMENT_BN[m] || m;
   if (buyProduct) $("pay-amount").textContent = taka(buyProduct.price);
 }
-const PAYMENT_BN = { bkash: "বিকাশ", nagad: "নগদ", rocket: "রকেট" };
-const PAY_IMAGES = { bkash: "bkash.jpg", nagad: "nagad.jpg", rocket: "rocket.jpg" };
-const PAY_COLORS = { bkash: "#e2136e", nagad: "#f6921e", rocket: "#8c3494" };
+const PAYMENT_BN = { bkash: "বিকাশ", nagad: "নগদ", qr: "বাংলা QR" };
+const PAY_IMAGES = { bkash: "bkash.png", nagad: "nagad.png", qr: "banglaqr.png" };
+const PAY_COLORS = { bkash: "#e2136e", nagad: "#f6921e", qr: "#d42a1e" };
 let payMethod = "bkash"; // selected payment method (via Add Money picker)
+let tempPayMethod = "bkash"; // highlighted card inside the picker
 const STATUS_BN = { pending: "অপেক্ষমাণ", confirmed: "কনফার্মড", delivered: "ডেলিভার্ড", cancelled: "বাতিল" };
 
 const CATEGORIES = ["সব", "ডায়মন্ড", "মেম্বারশিপ"];
@@ -264,6 +266,7 @@ function wireBuy() {
   $("confirm-ok").onclick = () => $("confirm-modal").classList.add("hidden");
   // Add Money picker
   $("add-money-btn").onclick = () => {
+    tempPayMethod = payMethod;
     refreshPayUI();
     $("pay-picker").classList.remove("hidden");
   };
@@ -273,11 +276,15 @@ function wireBuy() {
   });
   document.querySelectorAll(".pay-card").forEach((c) => {
     c.onclick = () => {
-      payMethod = c.dataset.m;
+      tempPayMethod = c.dataset.m;
       refreshPayUI();
-      $("pay-picker").classList.add("hidden");
     };
   });
+  $("pay-now-btn").onclick = () => {
+    payMethod = tempPayMethod;
+    refreshPayUI();
+    $("pay-picker").classList.add("hidden");
+  };
   $("copy-number").onclick = async () => {
     const num = $("pay-number").textContent.trim();
     const btn = $("copy-number");
@@ -319,7 +326,7 @@ async function submitOrder(e) {
 
   if (!/^[A-Za-z0-9]{6,20}$/.test(uid)) { errEl.textContent = ERROR_BN.invalid_uid; return; }
   if (!/^01[3-9]\d{8}$/.test(senderNumber)) { errEl.textContent = ERROR_BN.invalid_sender_number; return; }
-  if (!["bkash", "nagad", "rocket"].includes(paymentMethod)) { errEl.textContent = ERROR_BN.invalid_payment_method; return; }
+  if (!["bkash", "nagad", "qr"].includes(paymentMethod)) { errEl.textContent = ERROR_BN.invalid_payment_method; return; }
   if (!moneySent) { errEl.textContent = ERROR_BN.money_not_sent; return; }
   if (!/^[A-Z0-9]{6,20}$/.test(trxid)) { errEl.textContent = ERROR_BN.invalid_trxid; return; }
 

@@ -133,9 +133,9 @@
       <div class="pay-step">
         <p class="step-title"><span class="step-num">১</span> পেমেন্ট মাধ্যম বাছুন</p>
         <button type="button" id="add-money-btn" class="btn-addmoney">
-          <img id="add-money-img" src="bkash.jpg" alt="">
-          <span><strong>💰 Add Money</strong><small id="add-money-sub">বিকাশ দিয়ে পেমেন্ট করুন</small></span>
-          <span class="chev">›</span>
+          <span class="add-ico">⊕</span>
+          <span><strong>Add Money</strong><small id="add-money-sub">বিকাশ দিয়ে পেমেন্ট করুন</small></span>
+          <img id="add-money-img" src="bkash.png" alt="">
         </button>
       </div>
 
@@ -171,19 +171,19 @@
 <div id="pay-picker" class="hidden modal-wrap">
   <div class="modal pay-modal">
     <button id="paypicker-close" class="modal-x" aria-label="বন্ধ করুন">✕</button>
-    <h3>💰 Add Money</h3>
-    <p class="muted small center">পেমেন্ট মাধ্যম বেছে নিন</p>
+    <div class="pay-head">Select Payment Method</div>
     <div class="pay-cards">
       <button type="button" class="pay-card" data-m="bkash" style="--brand:#e2136e">
-        <img src="bkash.jpg" alt="বিকাশ"><span>বিকাশ</span>
+        <img src="bkash.png" alt="বিকাশ"><span>bKash</span>
       </button>
       <button type="button" class="pay-card" data-m="nagad" style="--brand:#f6921e">
-        <img src="nagad.jpg" alt="নগদ"><span>নগদ</span>
+        <img src="nagad.png" alt="নগদ"><span>Nagad</span>
       </button>
-      <button type="button" class="pay-card" data-m="rocket" style="--brand:#8c3494">
-        <img src="rocket.jpg" alt="রকেট"><span>রকেট</span>
+      <button type="button" class="pay-card" data-m="qr" style="--brand:#d42a1e">
+        <img src="banglaqr.png" alt="বাংলা QR"><span>Bangla QR</span>
       </button>
     </div>
+    <button type="button" id="pay-now-btn" class="btn-paynow">Pay ৳০ BDT</button>
   </div>
 </div>
 

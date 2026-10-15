@@ -45,8 +45,8 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "changeme123")
 BD_PHONE_RE = re.compile(r"^01[3-9]\d{8}$")
 UID_RE = re.compile(r"^[A-Za-z0-9]{6,20}$")
 TRXID_RE = re.compile(r"^[A-Z0-9]{6,20}$")
-PAYMENT_METHODS = ("bkash", "nagad", "rocket")
-PAYMENT_METHOD_BN = {"bkash": "বিকাশ", "nagad": "নগদ", "rocket": "রকেট"}
+PAYMENT_METHODS = ("bkash", "nagad", "qr")
+PAYMENT_METHOD_BN = {"bkash": "বিকাশ", "nagad": "নগদ", "qr": "বাংলা QR"}
 ORDER_STATUSES = ("pending", "confirmed", "delivered", "cancelled")
 MIN_PASSWORD_LEN = 6
 
